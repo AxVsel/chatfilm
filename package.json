@@ -1,5 +1,5 @@
 {
-  "name": "chatbot",
+  "name": "chatfilm",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
+    "express": "^5.1.0",
     "next": "15.4.7",
     "react": "19.1.0",
     "react-dom": "19.1.0"
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/express": "^5.0.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

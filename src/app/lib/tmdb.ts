@@ -1,26 +1,38 @@
 const BASE_URL = "https://api.themoviedb.org/3";
-const TMDB_TOKEN = process.env.TMDB_ACCESS_TOKEN;
+const TOKEN = process.env.TMDB_ACCESS_TOKEN!;
 
-if (!TMDB_TOKEN) {
-  console.error("❌ TMDB_ACCESS_TOKEN is missing");
-}
-
-export async function getPopularMovies() {
-  const url = `${BASE_URL}/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc`;
+// 🔹 film populer
+export async function getPopularMovies(limit = 5) {
+  const url = `${BASE_URL}/movie/popular?language=en-US&page=1`;
 
   const res = await fetch(url, {
     method: "GET",
     headers: {
       accept: "application/json",
-      Authorization: `Bearer ${TMDB_TOKEN}`,
+      Authorization: `Bearer ${TOKEN}`,
     },
   });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`TMDB fetch error: ${res.status} - ${errorText}`);
-  }
-
+  if (!res.ok) throw new Error("TMDB fetch error");
   const data = await res.json();
-  return data.results.slice(0, 5);
+  return data.results.slice(0, limit);
+}
+
+// 🔹 cari film
+export async function searchMovies(query: string, limit = 5) {
+  const url = `${BASE_URL}/search/movie?query=${encodeURIComponent(
+    query
+  )}&include_adult=false&language=en-US&page=1`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+    },
+  });
+
+  if (!res.ok) throw new Error("TMDB fetch error");
+  const data = await res.json();
+  return data.results.slice(0, limit);
 }

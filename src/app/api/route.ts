@@ -1,38 +1,115 @@
-import { NextRequest, NextResponse } from "next/server";
+// /app/api/gemini/route.ts
+import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getPopularMovies } from "../lib/tmdb";
+import { getPopularMovies, searchMovies } from "@/app/lib/tmdb";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const { text } = await req.json();
+    const body = await req.json();
+    const { text } = body;
 
-    if (!text) {
-      return NextResponse.json({ reply: "⚠️ Input kosong" }, { status: 400 });
+    let prompt = text;
+    const lower = text.toLowerCase();
+
+    // -------------------
+    // DAFTAR KEYWORDS
+    // -------------------
+    const popularKeywords = [
+      "film populer",
+      "rekomendasi film",
+      "film terbaru",
+      "saat ini",
+    ];
+
+    const searchKeywords = [
+      "cari",
+      "cari film",
+      "rating",
+      "tentang",
+      "dari",
+      "judul",
+      "berjudul",
+    ];
+    // cek apakah kalimat mengandung kata populer
+    const isPopular = popularKeywords.some((k) => lower.includes(k));
+    // cek apakah kalimat mengandung kata pencarian
+    const isSearch = searchKeywords.some((k) => lower.includes(k));
+
+    // -------------------
+    // PRIORITAS: SEARCH
+    // -------------------
+    if (isSearch) {
+      // ambil query dengan hapus kata kunci
+      let query = text
+        .replace(
+          /(cari|cari film|rating|tentang|dari|rekomendasi film|film terbaru|saat ini|berjudul)/gi,
+          ""
+        )
+        .trim();
+
+      if (!query && isPopular) {
+        // fallback → kalau query kosong, tapi ada kata populer
+        const match = text.match(/\d+/);
+        const limit = match ? parseInt(match[0]) : 5;
+
+        const movies = await getPopularMovies(limit);
+        const movieList = movies
+          .map(
+            (m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`
+          )
+          .join("\n");
+
+        prompt = `Berikan jawaban natural seperti manusia. Saat ini ${limit} film populer adalah:\n${movieList}\nBuat rekomendasi singkat atau komentar tentang film-film ini.`;
+      } else if (query) {
+        // lakukan search film
+        const movies = await searchMovies(query, 5);
+
+        if (movies.length === 0) {
+          prompt = `Tidak ada hasil untuk film dengan kata kunci "${query}".`;
+        } else {
+          const movieList = movies
+            .map(
+              (m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`
+            )
+            .join("\n");
+
+          prompt = `Berikan jawaban natural seperti manusia. Berikut hasil pencarian untuk "${query}":\n${movieList}\nTambahkan komentar singkat atau rekomendasi.`;
+        }
+      }
     }
 
-    // 🔹 jika user minta film populer → jawab dari TMDB
-    if (text.toLowerCase().includes("film populer")) {
-      const movies = await getPopularMovies();
+    // -------------------
+    // INTENT: POPULER
+    // -------------------
+    else if (isPopular) {
+      const match = text.match(/\d+/);
+      const limit = match ? parseInt(match[0]) : 5;
+
+      const movies = await getPopularMovies(limit);
       const movieList = movies
         .map((m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`)
         .join("\n");
 
-      return NextResponse.json({
-        reply: `🎬 Berikut film populer menurut TMDB:\n\n${movieList}`,
-      });
+      prompt = `Berikan jawaban natural seperti manusia. Saat ini ${limit} film populer adalah:\n${movieList}\nBuat rekomendasi singkat atau komentar tentang film-film ini.`;
     }
-    // 🔹 selain itu → jawab pakai Gemini
-    const result = await model.generateContent(text); // ✅ cukup string
-    const reply = result.response.text(); // ✅ ambil jawaban
+
+    // -------------------
+    // JALANKAN AI
+    // -------------------
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
+
+    const reply =
+      result.response.candidates?.[0]?.content.parts[0]?.text ||
+      "Maaf, saya tidak bisa menjawab.";
 
     return NextResponse.json({ reply });
-  } catch (err: any) {
-    console.error("❌ API Error:", err);
+  } catch (error) {
+    console.error(error);
     return NextResponse.json(
-      { reply: "⚠️ Terjadi error di server." },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
