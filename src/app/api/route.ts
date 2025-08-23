@@ -1,105 +1,65 @@
 // /app/api/gemini/route.ts
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getPopularMovies, searchMovies } from "@/app/lib/tmdb";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+// daftar kata kunci yang dianggap relevan dengan film
+const filmKeywords = [
+  "film",
+  "movie",
+  "cinema",
+  "aktor",
+  "aktris",
+  "sutradara",
+  "director",
+  "pemeran",
+  "cast",
+  "genre",
+  "bioskop",
+  "tayang",
+  "episode",
+  "series",
+  "trailer",
+];
+
+function isFilmRelated(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return filmKeywords.some((keyword) => lower.includes(keyword));
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { text } = body;
+    const { text, image, mimeType } = body;
 
-    let prompt = text;
-    const lower = text.toLowerCase();
-
-    // -------------------
-    // DAFTAR KEYWORDS
-    // -------------------
-    const popularKeywords = [
-      "film populer",
-      "rekomendasi film",
-      "film terbaru",
-      "saat ini",
-    ];
-
-    const searchKeywords = [
-      "cari",
-      "cari film",
-      "rating",
-      "tentang",
-      "dari",
-      "judul",
-      "berjudul",
-    ];
-    // cek apakah kalimat mengandung kata populer
-    const isPopular = popularKeywords.some((k) => lower.includes(k));
-    // cek apakah kalimat mengandung kata pencarian
-    const isSearch = searchKeywords.some((k) => lower.includes(k));
-
-    // -------------------
-    // PRIORITAS: SEARCH
-    // -------------------
-    if (isSearch) {
-      // ambil query dengan hapus kata kunci
-      let query = text
-        .replace(
-          /(cari|cari film|rating|tentang|dari|rekomendasi film|film terbaru|saat ini|berjudul)/gi,
-          ""
-        )
-        .trim();
-
-      if (!query && isPopular) {
-        // fallback → kalau query kosong, tapi ada kata populer
-        const match = text.match(/\d+/);
-        const limit = match ? parseInt(match[0]) : 5;
-
-        const movies = await getPopularMovies(limit);
-        const movieList = movies
-          .map(
-            (m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`
-          )
-          .join("\n");
-
-        prompt = `Berikan jawaban natural seperti manusia. Saat ini ${limit} film populer adalah:\n${movieList}\nBuat rekomendasi singkat atau komentar tentang film-film ini.`;
-      } else if (query) {
-        // lakukan search film
-        const movies = await searchMovies(query, 5);
-
-        if (movies.length === 0) {
-          prompt = `Tidak ada hasil untuk film dengan kata kunci "${query}".`;
-        } else {
-          const movieList = movies
-            .map(
-              (m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`
-            )
-            .join("\n");
-
-          prompt = `Berikan jawaban natural seperti manusia. Berikut hasil pencarian untuk "${query}":\n${movieList}\nTambahkan komentar singkat atau rekomendasi.`;
-        }
-      }
-    }
-
-    // -------------------
-    // INTENT: POPULER
-    // -------------------
-    else if (isPopular) {
-      const match = text.match(/\d+/);
-      const limit = match ? parseInt(match[0]) : 5;
-
-      const movies = await getPopularMovies(limit);
-      const movieList = movies
-        .map((m: any, i: number) => `${i + 1}. ${m.title} (${m.release_date})`)
-        .join("\n");
-
-      prompt = `Berikan jawaban natural seperti manusia. Saat ini ${limit} film populer adalah:\n${movieList}\nBuat rekomendasi singkat atau komentar tentang film-film ini.`;
-    }
-
-    // -------------------
-    // JALANKAN AI
-    // -------------------
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
+
+    let input: any[] = [];
+
+    if (text) {
+      input.push({ text });
+    }
+
+    if (image && mimeType) {
+      input.push({
+        inlineData: {
+          data: image, // base64
+          mimeType,
+        },
+      });
+    }
+
+    // 🔹 Filter: kalau ada teks tapi bukan terkait film
+    if (text && !isFilmRelated(text)) {
+      return NextResponse.json({
+        reply: "Maaf, ChatFilm hanya bisa menjawab tentang film saja 🎬",
+      });
+    }
+
+    // 🔹 Kalau hanya gambar tanpa teks → tetap boleh dianalisa
+    const result = await model.generateContent(input);
 
     const reply =
       result.response.candidates?.[0]?.content.parts[0]?.text ||

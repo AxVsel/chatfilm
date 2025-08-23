@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -18,10 +17,24 @@ export default function Chatboot() {
 
   const handleSend = async (data: { text?: string; file?: File }) => {
     let fileUrl: string | undefined;
+    let base64Image: string | undefined;
+    let mimeType: string | undefined;
+
     if (data.file) {
-      fileUrl = URL.createObjectURL(data.file);
+      const file = data.file;
+      fileUrl = URL.createObjectURL(file);
+      mimeType = file.type; // ✅ simpan tipe file
+
+      // 🔹 convert file ke base64 tanpa prefix
+      const reader = new FileReader();
+      base64Image = await new Promise<string>((resolve) => {
+        reader.onloadend = () =>
+          resolve((reader.result as string).split(",")[1]);
+        reader.readAsDataURL(file);
+      });
     }
 
+    // tampilkan pesan user
     setMessages((prev) => [
       ...prev,
       {
@@ -33,35 +46,36 @@ export default function Chatboot() {
       },
     ]);
 
-    if (data.text) {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
 
-        const res = await fetch("/api", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: data.text }), // 🔹 harus "text"
-        });
+      const res = await fetch("/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: data.text,
+          image: base64Image,
+          mimeType, // ✅ kirim mimeType
+        }),
+      });
 
-        if (!res.ok) {
-          throw new Error("API error");
-        }
+      if (!res.ok) throw new Error("API error");
 
-        const json = await res.json();
+      const json = await res.json();
 
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now() + 1, text: json.reply, type: "bot" },
-        ]);
-      } catch (err) {
-        console.error(err);
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now() + 2, text: "⚠️ Terjadi error.", type: "bot" },
-        ]);
-      } finally {
-        setLoading(false);
-      }
+      // tampilkan balasan bot
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, text: json.reply, type: "bot" },
+      ]);
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 2, text: "⚠️ Terjadi error.", type: "bot" },
+      ]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -70,6 +84,7 @@ export default function Chatboot() {
       <h1 className="text-3xl font-bold mb-6 text-gray-800">💬 ChatFilm</h1>
 
       <div className="w-full max-w-lg flex flex-col border rounded-2xl shadow-lg bg-white overflow-hidden">
+        {/* Chat Messages */}
         <div className="flex-1 p-4 space-y-4 overflow-y-auto max-h-[500px]">
           {messages.map((msg) => (
             <div
@@ -128,6 +143,8 @@ export default function Chatboot() {
             </div>
           )}
         </div>
+
+        {/* Input Chat */}
         <div className="border-t p-3 bg-gray-50">
           <ChatInput onSend={handleSend} />
         </div>
