@@ -61,7 +61,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
         <button
           onClick={handleSend}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
         >
           Kirim
         </button>
