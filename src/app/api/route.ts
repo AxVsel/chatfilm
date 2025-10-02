@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// ✅ simpan history percakapan di memory (sementara, hilang kalau server restart)
+// ✅ simpan history percakapan (sementara, hilang kalau server restart)
 let conversationHistory: any[] = [];
 
 // daftar kata kunci hiburan
@@ -78,7 +78,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { text, image, mimeType } = body;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // ✅ pakai model yang valid
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash", // ✅ harus ada -latest
+    });
 
     let userParts: any[] = [];
 
@@ -87,7 +90,6 @@ export async function POST(req: Request) {
     }
 
     if (image && mimeType) {
-      // 🚨 hanya gambar yang didukung
       if (!allowedImageTypes.includes(mimeType)) {
         return NextResponse.json({
           reply: `Maaf, file dengan format ${mimeType} tidak didukung. Hanya gambar (jpg, png, webp, gif) yang bisa dianalisis 📷`,
@@ -96,13 +98,13 @@ export async function POST(req: Request) {
 
       userParts.push({
         inlineData: {
-          data: image, // base64
+          data: image, // base64 string
           mimeType,
         },
       });
     }
 
-    // 🔹 Filter hiburan
+    // 🔹 Filter: hanya hiburan
     if (text && !isEntertainmentRelated(text)) {
       return NextResponse.json({
         reply:
@@ -125,7 +127,7 @@ export async function POST(req: Request) {
       result.response.candidates?.[0]?.content.parts[0]?.text ||
       "Maaf, saya tidak bisa menjawab.";
 
-    // ✅ simpan ke history
+    // ✅ simpan history
     conversationHistory.push({ role: "user", parts: userParts });
     conversationHistory.push({
       role: "model",
@@ -133,10 +135,15 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ reply, history: conversationHistory });
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error("❌ Error di API route:", error);
+
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      {
+        error: true,
+        message: error.message || "Internal Server Error",
+        details: error,
+      },
       { status: 500 }
     );
   }
