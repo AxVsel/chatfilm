@@ -86,7 +86,7 @@ export default function Chatfilm() {
 
   return (
     <div className="flex flex-col justify-center items-center">
-      <div className="font-sans flex flex-col w-svh h-dvh bg-[#DDDAD0] shadow-2xl">
+      <div className="font-sans flex flex-col w-full h-dvh bg-[#DDDAD0] shadow-2xl">
         {/* Header */}
         <div className="p-4 bg-red-500 shadow-md border-b">
           <h1 className="text-2xl font-bold text-white">💬 ChatFilm</h1>
