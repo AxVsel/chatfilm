@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const { text, image, mimeType } = body;
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
     });
 
     const userParts: any[] = [];

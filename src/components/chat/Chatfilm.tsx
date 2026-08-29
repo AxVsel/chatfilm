@@ -129,9 +129,12 @@ export default function Chatfilm() {
         }),
       });
 
-      if (!res.ok) throw new Error("API error");
-
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.message || "API error");
+      }
+
       const botMessageId = Date.now() + 1;
       const replyText = json.reply;
 
@@ -151,13 +154,18 @@ export default function Chatfilm() {
           handleSpeak(botMessageId, plainText);
         }, 300);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error sending message:", err);
+      const errorMsg =
+        err?.message && err.message !== "API error"
+          ? `⚠️ Error: ${err.message}`
+          : "⚠️ Terjadi kesalahan saat menghubungi AI server. Pastikan koneksi internet Anda lancar.";
+
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 2,
-          text: "⚠️ Terjadi kesalahan saat menghubungi AI server. Pastikan koneksi internet Anda lancar.",
+          text: errorMsg,
           type: "bot",
         },
       ]);
